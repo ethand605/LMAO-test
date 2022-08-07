@@ -10,14 +10,13 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-
 	"github.com/bwmarrin/discordgo"
 )
 
 func main() {
 	var err error
 
-	var Session, _ = discordgo.New("Bot ") //token here
+	var Session, _ = discordgo.New("Bot MTAwMTkyMzk0NDQ0MzU2MDAwNg.GtKd2O.rrrmCR6fcRzYV8diufPDG1wGWW5AvaeVVa2OsQ") //token here
 
 	Session.AddHandler(showProgress)
 
@@ -54,22 +53,19 @@ func showProgress(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if username == "" {
 			s.ChannelMessageSend(m.ChannelID, "Please provide a username.")
 		}
-		progress := queryProblems(username)
+		progress := getProgress(username)
 		var progressStr strings.Builder
 		for key, value := range progress {
 			progressStr.WriteString(key + ": " + value + "\n")
 		}
-		s.ChannelMessageSend(m.ChannelID, "Here is the progress of "+username+":")
 		s.ChannelMessageSend(m.ChannelID, progressStr.String())
 
 	}
 }
 
-var blindList = [5]string{"Insert Interval", "House Robber", "K Closest Points to Origin", "Two Sum", "Basic Calculator"}
-
-type QueryRequestBody struct {
-	Query string `json:"query"`
-}
+//TODO: finish initializing the slice
+var grind75List = []string{"Two Sum", "Valid Parentheses", "Merge Two Sorted Lists", "Best Time to Buy and Sell Stock", "Valid Palindrome", "Invert Binary Tree", "
+Valid Anagram", "Binary Search"}
 
 type ResponseData struct {
 	Data struct {
@@ -79,24 +75,29 @@ type ResponseData struct {
 	} `json:"data"`
 }
 
-func queryProblems(username string) map[string]string {
+func getProgress(username string) map[string]string {
+	//TODO: add database calls here
 	progressMap := make(map[string]string)
-	for _, problem := range blindList {
+	for _, problem := range grind75List {
 		progressMap[problem] = "❌"
 	}
+	return updateProgress(username, progressMap) 
+}
 
-	jsonData := map[string]string{
+func updateProgress(username string, progressMap map[string]string) map[string]string {
+	query := map[string]string{
 		"query": `
             { 
-                recentAcSubmissionList(username: "` + username + `", limit: 2000) {
+                recentAcSubmissionList(username: "` + username + `", limit: 20) {
 					title
 				}
             }
         `,
 	}
-	jsonValue, _ := json.Marshal(jsonData)
-	request, err := http.NewRequest("POST", "https://leetcode.com/graphql", bytes.NewBuffer(jsonValue))
+	queryAsJson, _ := json.Marshal(query)
+	request, err := http.NewRequest("POST", "https://leetcode.com/graphql", bytes.NewBuffer(queryAsJson))
 	request.Header.Add("Content-Type", "application/json")
+
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
@@ -104,7 +105,6 @@ func queryProblems(username string) map[string]string {
 	}
 	defer response.Body.Close()
 	data, _ := ioutil.ReadAll(response.Body)
-	// fmt.Println(string(data))
 
 	data_struct := ResponseData{}
 	json.Unmarshal(data, &data_struct)
