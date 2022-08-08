@@ -23,6 +23,14 @@ var (
 		{
 			Name:        "progress",
 			Description: "Get grind75 progress",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "username",
+					Description: "leetcode username",
+					Required:    true,
+				},
+			},
 		},
 	}
 
@@ -36,9 +44,7 @@ var (
 			})
 		},
 		"progress": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			res := strings.Fields(i.Message.Content)
-			println(res)
-			username := res[1]
+			username := i.ApplicationCommandData().Options[0].Value.(string)
 
 			if username == "" {
 				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -49,6 +55,7 @@ var (
 				})
 			} else {
 				progress := getProgress(username)
+				//build message string
 				var progressStr strings.Builder
 				for key, value := range progress {
 					progressStr.WriteString(key + ": " + value + "\n")
@@ -68,9 +75,9 @@ var (
 func main() {
 	var err error
 
-	var Session, _ = discordgo.New("Bot MTAwMTkyMzk0NDQ0MzU2MDAwNg.GZgFiT.TdzD0KCO9FcNA_2n5V4Ww2_fsrBRQ9So4HqIVQ") //token here
+	var Session, _ = discordgo.New("Bot " + os.Getenv("TOKEN")) //token here
 
-	Session.AddHandler(showProgress)
+	// Session.AddHandler(showProgress)
 
 	// Open a websocket connection to Discord
 	err = Session.Open()
@@ -103,30 +110,6 @@ func main() {
 	defer Session.Close()
 
 	// Exit Normally.
-}
-
-func showProgress(s *discordgo.Session, i *discordgo.InteractionCreate) {
-	if i.User.ID == s.State.User.ID {
-		return
-	}
-
-	//command format: !progress username
-	res := strings.Fields(i.Message.Content)
-	command := res[0]
-	username := res[1]
-
-	if command == "!progress" {
-		if username == "" {
-			s.ChannelMessageSend(i.ChannelID, "Please provide a username.")
-		}
-		progress := getProgress(username)
-		var progressStr strings.Builder
-		for key, value := range progress {
-			progressStr.WriteString(key + ": " + value + "\n")
-		}
-		s.ChannelMessageSend(i.ChannelID, progressStr.String())
-
-	}
 }
 
 // TODO: finish initializing the slice
