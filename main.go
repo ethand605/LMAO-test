@@ -10,13 +10,65 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+
 	"github.com/bwmarrin/discordgo"
+)
+
+var (
+	commands = []*discordgo.ApplicationCommand{
+		{
+			Name:        "basic-command",
+			Description: "Basic command",
+		},
+		{
+			Name:        "progress",
+			Description: "Get grind75 progress",
+		},
+	}
+
+	commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
+		"basic-command": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Content: "Hey there! Congratulations, you just executed your first slash command",
+				},
+			})
+		},
+		"progress": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+			res := strings.Fields(i.Message.Content)
+			println(res)
+			username := res[1]
+
+			if username == "" {
+				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "Please provide a username.",
+					},
+				})
+			} else {
+				progress := getProgress(username)
+				var progressStr strings.Builder
+				for key, value := range progress {
+					progressStr.WriteString(key + ": " + value + "\n")
+				}
+				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: progressStr.String(),
+					},
+				})
+			}
+
+		},
+	}
 )
 
 func main() {
 	var err error
 
-	var Session, _ = discordgo.New("Bot MTAwMTkyMzk0NDQ0MzU2MDAwNg.GtKd2O.rrrmCR6fcRzYV8diufPDG1wGWW5AvaeVVa2OsQ") //token here
+	var Session, _ = discordgo.New("Bot MTAwMTkyMzk0NDQ0MzU2MDAwNg.GZgFiT.TdzD0KCO9FcNA_2n5V4Ww2_fsrBRQ9So4HqIVQ") //token here
 
 	Session.AddHandler(showProgress)
 
@@ -27,6 +79,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	//adding commands
+	Session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
+			h(s, i)
+		}
+	})
+
+	for _, v := range commands {
+		_, err := Session.ApplicationCommandCreate(Session.State.User.ID, os.Getenv("DISCORD_GUILD"), v)
+		if err != nil {
+			log.Panicf("Cannot create '%v' command: %v", v.Name, err)
+		}
+	}
+
 	// Wait for a CTRL-C
 	log.Printf(`Now running. Press CTRL-C to exit.`)
 	sc := make(chan os.Signal, 1)
@@ -34,38 +100,37 @@ func main() {
 	<-sc
 
 	// Clean up
-	Session.Close()
+	defer Session.Close()
 
 	// Exit Normally.
 }
 
-func showProgress(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID == s.State.User.ID {
+func showProgress(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if i.User.ID == s.State.User.ID {
 		return
 	}
 
 	//command format: !progress username
-	res := strings.Fields(m.Content)
+	res := strings.Fields(i.Message.Content)
 	command := res[0]
 	username := res[1]
 
 	if command == "!progress" {
 		if username == "" {
-			s.ChannelMessageSend(m.ChannelID, "Please provide a username.")
+			s.ChannelMessageSend(i.ChannelID, "Please provide a username.")
 		}
 		progress := getProgress(username)
 		var progressStr strings.Builder
 		for key, value := range progress {
 			progressStr.WriteString(key + ": " + value + "\n")
 		}
-		s.ChannelMessageSend(m.ChannelID, progressStr.String())
+		s.ChannelMessageSend(i.ChannelID, progressStr.String())
 
 	}
 }
 
-//TODO: finish initializing the slice
-var grind75List = []string{"Two Sum", "Valid Parentheses", "Merge Two Sorted Lists", "Best Time to Buy and Sell Stock", "Valid Palindrome", "Invert Binary Tree", "
-Valid Anagram", "Binary Search"}
+// TODO: finish initializing the slice
+var grind75List = []string{"Two Sum", "Valid Parentheses", "Merge Two Sorted Lists", "Best Time to Buy and Sell Stock", "Valid Palindrome", "Invert Binary Tree"}
 
 type ResponseData struct {
 	Data struct {
@@ -81,10 +146,11 @@ func getProgress(username string) map[string]string {
 	for _, problem := range grind75List {
 		progressMap[problem] = "❌"
 	}
-	return updateProgress(username, progressMap) 
+	updateProgress(username, progressMap)
+	return progressMap
 }
 
-func updateProgress(username string, progressMap map[string]string) map[string]string {
+func updateProgress(username string, progressMap map[string]string) {
 	query := map[string]string{
 		"query": `
             { 
@@ -122,7 +188,6 @@ func updateProgress(username string, progressMap map[string]string) map[string]s
 			progressMap[problem] = "✅"
 		}
 	}
-	return progressMap
 }
 
 //TODO:
